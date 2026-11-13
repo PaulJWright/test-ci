@@ -67,6 +67,12 @@ Once, on an Isambard-AI login node (the runner install from Phase 0 is reused):
 ```bash
 git clone https://github.com/PaulJWright/brics-ci ~/brics-ci
 ls ~/actions-runner/current/run.sh     # Phase 0's install; or set RUNNER_HOME
+
+# One tar file per runner version: each job then unpacks the runner in about
+# a second, instead of copying its files one by one (45-54 s from home)
+cd ~/actions-runner
+tar -cf 2.338.2.tar -C 2.338.2 .
+ln -sfn 2.338.2.tar current.tar
 ```
 
 In a test repo of your own, add `examples/gh200-tests.yml` as
@@ -110,19 +116,33 @@ it's stored in the jobs table and shown on the release page: dev only.
 
 ## Tested so far
 
-From Phase 0, on Isambard-AI, with the same code as `launch-runner.sh`,
-`hook.sh` and `brics-apptainer`:
+On Isambard-AI, 13 Nov, with `dispatch: manual` and `dispatch-runner.sh` from a
+laptop, calling `gh200.yml@v0` from a test repo:
 
-- the runner starts from the config in the environment, takes one job, reports
-  pass or fail, and deletes its credentials;
-- `scancel`: the runner tells GitHub within 16 s ("The operation was canceled");
-- steps in an Apptainer image see the GH200 and the workspace, and outputs work;
-- compute nodes reach GitHub, artifact and cache storage, and Docker Hub.
+- a push runs the GH200 jobs with nobody touching Isambard-AI: about 25 s from
+  push to the job starting with the tar copy, most of it the watcher's polling;
+- a plain job, and one in `ubuntu:24.04` through `brics-apptainer` (found on
+  `PATH`), both see the GH200 and pass;
+- each runner takes one job, deletes its credentials and exits; the launcher
+  cleans up, and no config files are left in `~/.brics-ci`;
+- `scancel` mid-job: GitHub shows "The operation was canceled" 19 s later, inside
+  Slurm's 30 s before SIGKILL;
+- the tar copy unpacks the runner in 0-1 s, against 45-54 s copying file by file;
+- two queued runs, one dispatched: the other run's jobs stay queued (run label);
+- a runner started for run A that takes a job from run B is refused by the
+  pre-job hook before checkout;
+- a matrix gives one queued job per profile, each with its own label;
+  `gh200-1gpu` gets one GPU.
 
-Not yet tested: `submit.sh`, `dispatch-runner.sh` and `request-runner` against
-the real cluster and job API, `brics-apptainer` found on `PATH` rather than by
-full path, the tar copy, the 4-GPU profile, and calling `gh200.yml` from another
-repo.
+From Phase 0: compute nodes reach GitHub, artifact and cache storage, and Docker
+Hub; steps in an Apptainer image see the GPU and the workspace.
+
+Not yet tested: the 4-GPU profile (waiting for a node), a runner config used
+the day after it was made, the `timeout-minutes` value GitHub applies, and
+`request-runner` (`dispatch: mvp`) against the real job API.
+
+Known gap: a Slurm job cancelled before it starts leaves its config file in
+`~/.brics-ci` and its runner registration in GitHub.
 
 ## Versioning
 
