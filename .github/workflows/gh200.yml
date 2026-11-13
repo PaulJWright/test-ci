@@ -1,0 +1,105 @@
+# gh200.yml: the reusable workflow users call to run a script on Isambard-AI.
+#
+#   jobs:
+#     gh200:
+#       uses: PaulJWright/brics-ci/.github/workflows/gh200.yml@v0
+#       with:
+#         profile: gh200-1gpu
+#         script: ci/gh200.sh
+#
+# The GH200 job runs on a short-lived runner: one runner, in one Slurm job, for
+# this one job, labelled brics-<profile> and brics-run-<run id>. What starts that
+# runner depends on `dispatch` (see README.md).
+name: gh200
+on:
+  workflow_call:
+    inputs:
+      profile:
+        description: Resources on Isambard-AI, for example gh200-1gpu
+        type: string
+        required: true
+      script:
+        description: Path to the script in your repo, run from the repo's root
+        type: string
+        required: true
+      args:
+        description: Arguments for the script
+        type: string
+        default: ""
+      image:
+        description: Optional. Run the script in this container image with Apptainer, for example ubuntu:24.04
+        type: string
+        default: ""
+      dispatch:
+        description: "How the runner starts: manual (Phase 1), mvp (dev, Phase A), service (Phase B) or automatic"
+        type: string
+        default: manual
+    secrets:
+      origin-token:
+        description: The repo's BriCS CI origin token (mvp, service)
+        required: false
+      runner-admin-pat:
+        description: "A fine-grained PAT for the repo with Administration: write (mvp only, dev only)"
+        required: false
+    outputs:
+      release-url:
+        description: Where to release the run (mvp, service)
+        value: ${{ jobs.request.outputs.release-url }}
+
+jobs:
+  # Runs on GitHub's own runner for a few seconds and asks BriCS for a runner.
+  # Skipped for manual and automatic, and for pull requests from forks.
+  request:
+    if: >-
+      (inputs.dispatch == 'mvp' || inputs.dispatch == 'service') &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release-url: ${{ steps.request.outputs.release-url }}
+    steps:
+      - id: request
+        uses: PaulJWright/brics-ci/request-runner@v0
+        with:
+          dispatch: ${{ inputs.dispatch }}
+          profile: ${{ inputs.profile }}
+          origin-token: ${{ secrets.origin-token }}
+          runner-admin-pat: ${{ secrets.runner-admin-pat }}
+          url: ${{ vars.BRICS_CI_URL }}
+
+  # Waits in GitHub until its runner starts on Isambard-AI, then runs there.
+  run:
+    needs: request
+    if: >-
+      ${{ !cancelled() &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository) &&
+          (needs.request.result == 'success' ||
+           inputs.dispatch == 'manual' || inputs.dispatch == 'automatic') }}
+    # automatic: the scale set's name only; otherwise the profile label plus the run label
+    runs-on: >-
+      ${{ fromJSON(inputs.dispatch == 'automatic'
+          && format('["brics-{0}"]', inputs.profile)
+          || format('["brics-{0}","brics-run-{1}"]', inputs.profile, github.run_id)) }}
+    # from launcher/profiles.sh (JOB_MINUTES); tests/check-profiles.sh keeps them in step
+    timeout-minutes: ${{ fromJSON('{"gh200-1gpu":50,"gh200-4gpu":110}')[inputs.profile] }}
+    env:
+      SCRIPT: ${{ inputs.script }}
+      ARGS: ${{ inputs.args }}
+      BRICS_IMAGE: ${{ inputs.image }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run ${{ inputs.script }}
+        if: inputs.image == ''
+        run: |
+          read -ra args <<< "$ARGS"
+          bash "$SCRIPT" "${args[@]}"
+
+      - name: Run ${{ inputs.script }} in ${{ inputs.image }}
+        if: inputs.image != ''
+        shell: brics-apptainer {0}   # on PATH in every BriCS runner; runs the step in BRICS_IMAGE
+        run: |
+          read -ra args <<< "$ARGS"
+          bash "$SCRIPT" "${args[@]}"
