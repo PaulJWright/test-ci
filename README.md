@@ -132,17 +132,25 @@ laptop, calling `gh200.yml@v0` from a test repo:
 - a runner started for run A that takes a job from run B is refused by the
   pre-job hook before checkout;
 - a matrix gives one queued job per profile, each with its own label;
-  `gh200-1gpu` gets one GPU.
+  `gh200-1gpu` gets one GPU, and `gh200-4gpu` a whole node with four (after
+  40 min in the Slurm queue on a full machine);
+- a runner config unused for 41 min still works.
 
 From Phase 0: compute nodes reach GitHub, artifact and cache storage, and Docker
 Hub; steps in an Apptainer image see the GPU and the workspace.
 
-Not yet tested: the 4-GPU profile (waiting for a node), a runner config used
-the day after it was made, the `timeout-minutes` value GitHub applies, and
-`request-runner` (`dispatch: mvp`) against the real job API.
+Not yet tested: a runner config used the day after it was made, the
+`timeout-minutes` value GitHub applies, and `request-runner` (`dispatch: mvp`)
+against the real job API.
 
-Known gap: a Slurm job cancelled before it starts leaves its config file in
-`~/.brics-ci` and its runner registration in GitHub.
+Known gaps:
+
+- a Slurm job cancelled before it starts leaves its config file in
+  `~/.brics-ci` and its runner registration in GitHub;
+- a runner that starts after its GitHub job has gone (cancelled, or failed
+  after 24 h in the queue) sits idle and holds its node until `RUNNER_MINUTES`.
+  The launcher should stop a runner with no job after about 10 minutes, and the
+  dispatcher should cancel the Slurm job when its GitHub job goes.
 
 ## Versioning
 
