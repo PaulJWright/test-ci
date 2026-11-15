@@ -15,8 +15,8 @@
 # dispatch: service (Phase B) is not built yet.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=../launcher/profiles.sh
-. "$here/../launcher/profiles.sh"
+# shellcheck source=profiles.sh
+. "$here/profiles.sh"
 
 fail() { echo "::error::$*"; exit 1; }
 
@@ -33,8 +33,8 @@ esac
 
 # 1. A runner config that only this run's job can match
 config=$(gh api -X POST "repos/$REPO/actions/runners/generate-jitconfig" \
-  -f name="brics-$RUN_ID-$RUN_ATTEMPT-$PROFILE" -F runner_group_id=1 \
-  -f "labels[]=brics-$PROFILE" -f "labels[]=brics-run-$RUN_ID" \
+  -f name="test-ci-$RUN_ID-$RUN_ATTEMPT-$PROFILE" -F runner_group_id=1 \
+  -f "labels[]=test-ci-$PROFILE" -f "labels[]=test-ci-run-$RUN_ID" \
   --jq .encoded_jit_config) || fail "Couldn't create a runner config: check the PAT"
 echo "::add-mask::$config"
 [[ $config =~ ^[A-Za-z0-9+/=]+$ ]] || fail "Unexpected runner config from GitHub"
@@ -44,7 +44,7 @@ job=$(mktemp)
 trap 'rm -f "$job"' EXIT
 {
   echo '#!/bin/bash'
-  echo "#SBATCH --job-name=brics-$PROFILE-$RUN_ID"
+  echo "#SBATCH --job-name=test-ci-$PROFILE-$RUN_ID"
   for a in "${SBATCH_ARGS[@]}"; do echo "#SBATCH $a"; done
   echo '#SBATCH --output=%x-%j.out'
   echo "export ACTIONS_RUNNER_INPUT_JITCONFIG='$config'"
@@ -66,7 +66,7 @@ echo "Job $job_id added. Release it at $release_url"
 echo "Task token: $task_token"
 echo "release-url=$release_url" >> "$GITHUB_OUTPUT"
 {
-  echo "### BriCS CI"
+  echo "### test-ci"
   echo "The $PROFILE job is waiting for a runner on Isambard-AI (job $job_id)."
   echo "Release it at $release_url with the task token from the request step's log and your origin token."
   echo "GitHub cancels the job if no runner starts within 24 hours."

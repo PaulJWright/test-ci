@@ -1,7 +1,7 @@
 # Copy to .github/workflows/gh200-tests.yml in your repo, and ci/gh200.sh beside it.
 #
 # Phase 1 (now): dispatch: manual. Start the runner from your laptop with
-#   tools/dispatch-runner.sh --watch OWNER/REPO
+#   test-ci-runner's tools/dispatch-runner.sh --watch OWNER/REPO
 # Phase A (dev): dispatch: mvp, with the two secrets and the BRICS_CI_URL variable.
 name: GH200 tests
 on:
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   gh200:
-    uses: PaulJWright/brics-ci/.github/workflows/gh200.yml@v0
+    uses: PaulJWright/test-ci/.github/workflows/gh200.yml@v0
     with:
       profile: gh200-1gpu
       script: ci/gh200.sh
@@ -27,7 +27,7 @@ jobs:
 
   # The same script, in a container image
   gh200-image:
-    uses: PaulJWright/brics-ci/.github/workflows/gh200.yml@v0
+    uses: PaulJWright/test-ci/.github/workflows/gh200.yml@v0
     with:
       profile: gh200-1gpu
       script: ci/gh200.sh

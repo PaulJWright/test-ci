@@ -1,6 +1,6 @@
-name: BriCS CI request runner
+name: test-ci request runner
 description: >-
-  Asks BriCS CI to start a runner on Isambard-AI for this run's GH200 job. Runs on
+  Asks the CI service to start a runner on Isambard-AI for this run's GH200 job. Runs on
   GitHub's own runner, in gh200.yml's request job, or in your own workflow (the
   advanced form).
 inputs:
@@ -11,19 +11,19 @@ inputs:
     description: Resources on Isambard-AI, for example gh200-1gpu
     required: true
   origin-token:
-    description: The repo's BriCS CI origin token
+    description: The repo's origin token for the CI service's job API
     required: true
   runner-admin-pat:
     description: "dispatch: mvp only. A fine-grained PAT for this repo with Administration: write"
     required: false
     default: ""
   url:
-    description: The BriCS CI job API, for example vars.BRICS_CI_URL
+    description: The CI service's job API (ci-service), for example vars.BRICS_CI_URL
     required: true
   launcher:
-    description: Where launch-runner.sh lives on the cluster
+    description: Where test-ci-runner's launch-runner.sh lives on the cluster
     required: false
-    default: /opt/brics-ci/launcher/launch-runner.sh
+    default: /opt/test-ci-runner/launcher/launch-runner.sh
 outputs:
   release-url:
     description: Where to release this run

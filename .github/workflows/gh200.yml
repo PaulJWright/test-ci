@@ -2,13 +2,13 @@
 #
 #   jobs:
 #     gh200:
-#       uses: PaulJWright/brics-ci/.github/workflows/gh200.yml@v0
+#       uses: PaulJWright/test-ci/.github/workflows/gh200.yml@v0
 #       with:
 #         profile: gh200-1gpu
 #         script: ci/gh200.sh
 #
 # The GH200 job runs on a short-lived runner: one runner, in one Slurm job, for
-# this one job, labelled brics-<profile> and brics-run-<run id>. What starts that
+# this one job, labelled test-ci-<profile> and test-ci-run-<run id>. What starts that
 # runner depends on `dispatch` (see README.md).
 name: gh200
 on:
@@ -36,7 +36,7 @@ on:
         default: manual
     secrets:
       origin-token:
-        description: The repo's BriCS CI origin token (mvp, service)
+        description: The repo's origin token for the CI service's job API (mvp, service)
         required: false
       runner-admin-pat:
         description: "A fine-grained PAT for the repo with Administration: write (mvp only, dev only)"
@@ -47,7 +47,7 @@ on:
         value: ${{ jobs.request.outputs.release-url }}
 
 jobs:
-  # Runs on GitHub's own runner for a few seconds and asks BriCS for a runner.
+  # Runs on GitHub's own runner for a few seconds and asks the CI service for a runner.
   # Skipped for manual and automatic, and for pull requests from forks.
   request:
     if: >-
@@ -60,7 +60,7 @@ jobs:
       release-url: ${{ steps.request.outputs.release-url }}
     steps:
       - id: request
-        uses: PaulJWright/brics-ci/request-runner@v0
+        uses: PaulJWright/test-ci/request-runner@v0
         with:
           dispatch: ${{ inputs.dispatch }}
           profile: ${{ inputs.profile }}
@@ -80,14 +80,14 @@ jobs:
     # automatic: the scale set's name only; otherwise the profile label plus the run label
     runs-on: >-
       ${{ fromJSON(inputs.dispatch == 'automatic'
-          && format('["brics-{0}"]', inputs.profile)
-          || format('["brics-{0}","brics-run-{1}"]', inputs.profile, github.run_id)) }}
-    # from launcher/profiles.sh (JOB_MINUTES); tests/check-profiles.sh keeps them in step
-    timeout-minutes: ${{ fromJSON('{"gh200-1gpu":50,"gh200-4gpu":110}')[inputs.profile] }}
+          && format('["test-ci-{0}"]', inputs.profile)
+          || format('["test-ci-{0}","test-ci-run-{1}"]', inputs.profile, github.run_id)) }}
+    # from request-runner/profiles.sh (JOB_MINUTES); tests/check-profiles.sh keeps them in step
+    timeout-minutes: ${{ fromJSON('{"gh200-1gpu":50,"gh200-4gpu":110,"dev-cpu":20}')[inputs.profile] }}
     env:
       SCRIPT: ${{ inputs.script }}
       ARGS: ${{ inputs.args }}
-      BRICS_IMAGE: ${{ inputs.image }}
+      TEST_CI_IMAGE: ${{ inputs.image }}
     steps:
       - uses: actions/checkout@v5
 
@@ -99,7 +99,7 @@ jobs:
 
       - name: Run ${{ inputs.script }} in ${{ inputs.image }}
         if: inputs.image != ''
-        shell: brics-apptainer {0}   # on PATH in every BriCS runner; runs the step in BRICS_IMAGE
+        shell: test-ci-apptainer {0}   # on PATH in every test-ci runner; runs the step in TEST_CI_IMAGE
         run: |
           read -ra args <<< "$ARGS"
           bash "$SCRIPT" "${args[@]}"

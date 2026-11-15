@@ -1,10 +1,10 @@
 #!/bin/bash
-# Fails if gh200.yml's timeout-minutes map drifts from launcher/profiles.sh, or a
+# Fails if gh200.yml's timeout-minutes map drifts from request-runner/profiles.sh, or a
 # profile's limits are in the wrong order (job < runner < Slurm).
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-# shellcheck source=../launcher/profiles.sh
-. "$root/launcher/profiles.sh"
+# shellcheck source=../request-runner/profiles.sh
+. "$root/request-runner/profiles.sh"
 
 want="{"
 for p in $PROFILES; do
