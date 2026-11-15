@@ -82,7 +82,7 @@ jobs:
       ${{ fromJSON(inputs.dispatch == 'automatic'
           && format('["test-ci-{0}"]', inputs.profile)
           || format('["test-ci-{0}","test-ci-run-{1}"]', inputs.profile, github.run_id)) }}
-    # from request-runner/profiles.sh (JOB_MINUTES); tests/check-profiles.sh keeps them in step
+    # from request-runner/profiles.json (job_minutes); tests/check-profiles.sh keeps them in step
     timeout-minutes: ${{ fromJSON('{"gh200-1gpu":50,"gh200-4gpu":110,"dev-cpu":20}')[inputs.profile] }}
     env:
       SCRIPT: ${{ inputs.script }}

@@ -35,7 +35,7 @@ request() {   # request <profile> <run id> [<dispatch>]
 request gh200-1gpu 88 || fail "request.sh: $(cat "$t/log")"
 grep -qx '#SBATCH --gpus=1' "$t/job.sh" || fail "job script: $(cat "$t/job.sh")"
 grep -qx "export ACTIONS_RUNNER_INPUT_JITCONFIG='QUJDREVG'" "$t/job.sh" || fail "config in job script"
-grep -qx "exec $launcher --profile gh200-1gpu --config-env --expect-repo o/r --expect-run 88" \
+grep -qx "exec $launcher --profile gh200-1gpu --runner-minutes 55 --config-env --expect-repo o/r --expect-run 88" \
   "$t/job.sh" || fail "launcher line: $(tail -1 "$t/job.sh")"
 grep -qxF 'labels[]=test-ci-gh200-1gpu' "$t/gh-args" || fail "profile label: $(cat "$t/gh-args")"
 grep -qxF 'labels[]=test-ci-run-88' "$t/gh-args" || fail "run label: $(cat "$t/gh-args")"
@@ -43,7 +43,7 @@ grep -qx 'https://ci.example/jobs' "$t/curl-args" || fail "job API URL"
 grep -q 'release-url=https://ci.example/release/12' "$t/output" || fail "output"
 grep -q 'https://ci.example/release/12' "$t/summary" || fail "summary"
 bash -n "$t/job.sh" || fail "job script isn't valid bash"
-echo "ok - mvp: job script, labels, job API call, release link"
+echo "ok - mvp: job script, runner minutes, labels, job API call, release link"
 
 request dev-cpu 89 || fail "request.sh dev-cpu: $(cat "$t/log")"
 ! grep -q -- '--gpus' "$t/job.sh" || fail "dev-cpu job script asks for GPUs: $(cat "$t/job.sh")"

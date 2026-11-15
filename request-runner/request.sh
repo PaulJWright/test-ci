@@ -15,13 +15,16 @@
 # dispatch: service (Phase B) is not built yet.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=profiles.sh
-. "$here/profiles.sh"
+profiles=$here/profiles.json
 
 fail() { echo "::error::$*"; exit 1; }
 
 : "${REPO:?}" "${RUN_ID:?}" "${RUN_ATTEMPT:?}"
-profile_settings "${PROFILE:-}" || fail "Unknown profile '${PROFILE:-}'. Known: $PROFILES"
+# The profile, from profiles.json: its runner minutes and Slurm options
+p=$(jq -c --arg p "${PROFILE:-}" '.[$p] // empty' "$profiles")
+[ -n "$p" ] || fail "Unknown profile '${PROFILE:-}'. Known: $(jq -r 'keys_unsorted | join(" ")' "$profiles")"
+runner_minutes=$(jq -r .runner_minutes <<<"$p")
+mapfile -t SBATCH_ARGS < <(jq -r '.slurm[]' <<<"$p")
 case ${DISPATCH:-} in
   mvp) ;;
   service) fail "dispatch: service arrives with Phase B. Use mvp on dev, or manual." ;;
@@ -48,8 +51,8 @@ trap 'rm -f "$job"' EXIT
   for a in "${SBATCH_ARGS[@]}"; do echo "#SBATCH $a"; done
   echo '#SBATCH --output=%x-%j.out'
   echo "export ACTIONS_RUNNER_INPUT_JITCONFIG='$config'"
-  printf 'exec %q --profile %q --config-env --expect-repo %q --expect-run %q\n' \
-    "$LAUNCHER" "$PROFILE" "$REPO" "$RUN_ID"
+  printf 'exec %q --profile %q --runner-minutes %q --config-env --expect-repo %q --expect-run %q\n' \
+    "$LAUNCHER" "$PROFILE" "$runner_minutes" "$REPO" "$RUN_ID"
 } > "$job"
 
 # 3. Add it to the job API. A person releases it there.
