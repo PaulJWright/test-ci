@@ -1,8 +1,7 @@
 name: test-ci request runner
 description: >-
-  Asks the CI service to start a runner on Isambard-AI for this run's GH200 job. Runs on
-  GitHub's own runner, in gh200.yml's request job, or in your own workflow (the
-  advanced form).
+  Asks the CI service to start a runner on Isambard-AI for this run's GH200 job. 
+  Runs on GitHub's own runner, in gh200.yml's request job, or in your own workflow (the advanced form).
 inputs:
   dispatch:
     description: "mvp (dev, Phase A) or service (Phase B)"
