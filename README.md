@@ -2,12 +2,10 @@
 
 
 Run a script from your GitHub repo on Isambard-AI's GH200 nodes, using GitHub Actions with short-lived runners. This is one runner, in one Slurm job, for one job, which exits when the job ends.
-Unlike CSCS's Gitlab instance, we do not need a mirror of your repo, and/or a long-running service on the cluster.
+Unlike CSCS's Gitlab instance, we do not need a mirror of your repo, and/or a long-running service on the cluster. We do need a PAT though.
 
 This is a repo is what you call from your workflow. 
-What runs it on the cluster is in [test-ci-runner](https://github.com/PaulJWright/test-ci-runner).
-
-Status: **v0, Phase 1.** Tested on Isambard-AI on 13 Nov 2026.
+[test-ci-runner](https://github.com/PaulJWright/test-ci-runner) is what runs on the Cluster
 
 ## What you write
 
@@ -22,9 +20,7 @@ jobs:
       # image: ubuntu:24.04    # optional: run the script in this image with Apptainer
 ```
 
-A full example is in [`examples/gh200-tests.yml`](examples/gh200-tests.yml), with
-a test script in [`examples/ci/gh200.sh`](examples/ci/gh200.sh). A matrix over
-`profile` gives one job per profile.
+A full example is in [`examples/gh200-tests.yml`](examples/gh200-tests.yml), with a test script in [`examples/ci/gh200.sh`](examples/ci/gh200.sh). A matrix over `profile` gives one job per profile.
 
 ## Inputs
 
@@ -38,20 +34,18 @@ a test script in [`examples/ci/gh200.sh`](examples/ci/gh200.sh). A matrix over
 
 ## Profiles
 
+We need some pre-set profiles for the user to choose, but larger node profiles will wait longer. `dev-cpu` is for local slurm container development only 
+
 | Profile | Slurm | Job time limit |
 |---|---|---|
 | `gh200-1gpu` | 1 GPU, 1 hour | 50 min |
 | `gh200-4gpu` | 4 GPUs on one node, 2 hours | 110 min |
 | `dev-cpu` | No GPU, 30 minutes: ci-service's dev stack only | 20 min |
 
-Larger node profiles wait longer, and `dev-cpu` will not work on Isambard-AI. 
-Investigations have shown that GitHub holds your job showing "Waiting for a runner" with the time limit only counts once it starts.
-
-## What your script gets
 
 - It runs on a GH200 node as the Isambard-AI account the runner started under, with the usual `GITHUB_*` variables and node-local `TMPDIR` (in RAM).
 - With `image`, each `run:` step runs in that image with the GPU, the workspace and `$HOME`; each step gets a fresh container. `uses:` steps such as checkout run on the node.
-- No Docker: GitHub's `container:`, `services:` and Docker actions don't work. Call Apptainer or podman-hpc from your script instead.
+- No Docker: GitHub's `container:`, `services:` and Docker actions don't work. Call Apptainer or podman-hpc (not sure if this is working on I-AI yet?) from your script instead.
 - It can submit Slurm jobs of its own as the same account. `sbatch --wait` returns the child job's exit code, so your step passes or fails with it. Cancel your child jobs if your script is interrupted: they outlive the CI job otherwise.
 
 ## What starts the runner
@@ -65,7 +59,7 @@ Investigations have shown that GitHub holds your job showing "Waiting for a runn
 | `service` (Phase B) | Not built yet | Release | The releaser's `user.project` | `origin-token` |
 | `automatic` | Not built yet | None | The account registered for the repo | None |
 
-**For `mvp`** (dev only), the calling repo needs:
+**For `mvp`** (local dev only), the calling repo needs:
 
 - the `BRICS_CI_URL` variable: ci-service's job API (the names are ci-service's);
 - `secrets: origin-token: ${{ secrets.BRICS_CI_ORIGIN_TOKEN }}`;
