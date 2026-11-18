@@ -1,7 +1,8 @@
 #!/bin/bash
-# Runs request-runner's request.sh (dispatch: mvp) against stand-ins for gh and the
-# job API: the job script it sends, the release link it reports, and its refusals.
-# No network. The runner side is tested in test-ci-runner.
+# Runs request-runner's request.sh (dispatch: mvp) against stand-ins for gh, GitHub's
+# OIDC token service and the job API: the job script it sends, the tokens it sends
+# with it, the release link it reports, and its refusals. No network. The runner
+# side is tested in test-ci-runner.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d)
@@ -12,9 +13,25 @@ export FAKE_OUT=$t
 mkdir -p "$t/stub"
 cat > "$t/stub/curl" <<'EOF'
 #!/bin/bash
-for a in "$@"; do case $a in @*) cp "${a#@}" "$FAKE_OUT/job.sh" ;; esac; done
+# GitHub's OIDC token service
+case "$*" in *token.example*)
+  printf '%s\n' "$@" > "$FAKE_OUT/oidc-args"
+  echo '{"count": 1, "value": "eyJhbGciOi.eyJpc3Mi.c2lnbmF0dXJl"}'
+  exit 0 ;;
+esac
+# The job API: -o FILE gets the reply, and -w prints the HTTP code
 printf '%s\n' "$@" > "$FAKE_OUT/curl-args"
-echo '{"job_id": 12, "task_token": "tt", "release_url": "https://ci.example/release/12"}'
+out=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    -o) out=$2; shift 2 ;;
+    @*) cp "${1#@}" "$FAKE_OUT/job.sh"; shift ;;
+    *) shift ;;
+  esac
+done
+[ "${FAKE_CODE:-201}" = 000 ] && { echo "curl: (7) Failed to connect" >&2; exit 7; }
+printf '%s' "${FAKE_REPLY:-{\"id\": \"dQw4w9WgXcQ\", \"release_url\": \"https://ci.example/ci/job?id=dQw4w9WgXcQ\"\}}" > "$out"
+printf '%s' "${FAKE_CODE:-201}"
 EOF
 cat > "$t/stub/gh" <<'EOF'
 #!/bin/bash
@@ -25,11 +42,16 @@ chmod +x "$t/stub/curl" "$t/stub/gh"
 launcher=/opt/test-ci-runner/launcher/launch-runner.sh
 
 request() {   # request <profile> <run id> [<dispatch>]
-  : > "$t/summary"; : > "$t/output"
+  : > "$t/summary"; : > "$t/output"; rm -f "$t/oidc-args" "$t/curl-args"
   PATH="$t/stub:$PATH" DISPATCH=${3:-mvp} PROFILE=$1 ORIGIN_TOKEN=ot GH_TOKEN=pat \
     URL=https://ci.example/ LAUNCHER=$launcher REPO=o/r RUN_ID=$2 RUN_ATTEMPT=1 \
     GITHUB_STEP_SUMMARY=$t/summary GITHUB_OUTPUT=$t/output \
     "$root/request-runner/request.sh" > "$t/log" 2>&1
+}
+# GitHub sets these when the workflow grants id-token: write
+with_oidc() {
+  ACTIONS_ID_TOKEN_REQUEST_URL='https://token.example/req?api-version=2.0' \
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN=rt "$@"
 }
 
 request gh200-1gpu 88 || fail "request.sh: $(cat "$t/log")"
@@ -40,10 +62,48 @@ grep -qx "exec $launcher --profile gh200-1gpu --runner-minutes 55 --config-env -
 grep -qxF 'labels[]=test-ci-gh200-1gpu' "$t/gh-args" || fail "profile label: $(cat "$t/gh-args")"
 grep -qxF 'labels[]=test-ci-run-88' "$t/gh-args" || fail "run label: $(cat "$t/gh-args")"
 grep -qx 'https://ci.example/jobs' "$t/curl-args" || fail "job API URL"
-grep -q 'release-url=https://ci.example/release/12' "$t/output" || fail "output"
-grep -q 'https://ci.example/release/12' "$t/summary" || fail "summary"
+grep -q 'release-url=https://ci.example/ci/job?id=dQw4w9WgXcQ' "$t/output" || fail "output: $(cat "$t/output")"
+# shellcheck disable=SC2016  # the backticks are the summary's own, not a command
+grep -qF '`https://ci.example/ci/job?id=dQw4w9WgXcQ`' "$t/summary" || fail "summary: $(cat "$t/summary")"
+grep -q 'job dQw4w9WgXcQ' "$t/summary" || fail "job ID in summary"
+! grep -q 'Task token' "$t/log" || fail "printed a task token: $(cat "$t/log")"
 bash -n "$t/job.sh" || fail "job script isn't valid bash"
 echo "ok - mvp: job script, runner minutes, labels, job API call, release link"
+
+# Without id-token: write, the origin token alone, as before
+grep -qx 'Authorization: Bearer ot' "$t/curl-args" || fail "origin token: $(cat "$t/curl-args")"
+! grep -q 'Origin-Token' "$t/curl-args" || fail "sent Origin-Token without a GitHub token"
+[ ! -e "$t/oidc-args" ] || fail "asked for a GitHub token without the permission"
+grep -q "::notice::No GitHub OIDC token" "$t/log" || fail "no notice: $(cat "$t/log")"
+echo "ok - mvp: without id-token: write, the origin token alone, with a notice"
+
+# With id-token: write, GitHub's token as the bearer token, the origin token beside it
+with_oidc request gh200-1gpu 90 || fail "request.sh with OIDC: $(cat "$t/log")"
+grep -qx 'https://token.example/req?api-version=2.0&audience=isambard-ci' "$t/oidc-args" \
+  || fail "token request: $(cat "$t/oidc-args")"
+grep -qx 'Authorization: Bearer rt' "$t/oidc-args" || fail "token request's own token"
+grep -qx 'Authorization: Bearer eyJhbGciOi.eyJpc3Mi.c2lnbmF0dXJl' "$t/curl-args" || fail "GitHub token: $(cat "$t/curl-args")"
+grep -qx 'Origin-Token: ot' "$t/curl-args" || fail "Origin-Token: $(cat "$t/curl-args")"
+! grep -qx 'Authorization: Bearer ot' "$t/curl-args" || fail "origin token sent as the bearer token too"
+grep -qx '::add-mask::eyJhbGciOi.eyJpc3Mi.c2lnbmF0dXJl' "$t/log" || fail "GitHub token not masked"
+echo "ok - mvp: with id-token: write, GitHub's token (masked) and the origin token"
+
+# An older job API's reply: the task token is printed for the release
+FAKE_REPLY='{"job_id": 12, "task_token": "tt", "release_url": "https://ci.example/ci/"}' \
+  request gh200-1gpu 91 || fail "request.sh, old reply: $(cat "$t/log")"
+grep -qx 'Task token: tt' "$t/log" || fail "old reply: no task token: $(cat "$t/log")"
+grep -q 'job 12' "$t/summary" || fail "old reply summary: $(cat "$t/summary")"
+grep -q 'task token' "$t/summary" || fail "old reply summary: $(cat "$t/summary")"
+echo "ok - mvp: an older job API's reply still works"
+
+# The job API's answers, told apart
+FAKE_CODE=000 request gh200-1gpu 92 && fail "unreachable job API accepted"
+grep -q "Couldn't reach the job API at https://ci.example/" "$t/log" || fail "unreachable: $(cat "$t/log")"
+FAKE_CODE=401 FAKE_REPLY='{"detail": "Missing or invalid origin token"}' request gh200-1gpu 93 && fail "401 accepted"
+grep -q 'refused the request (HTTP 401): Missing or invalid origin token' "$t/log" || fail "401: $(cat "$t/log")"
+FAKE_CODE=530 FAKE_REPLY='error code: 1033' request gh200-1gpu 94 && fail "530 accepted"
+grep -q 'answered HTTP 530. Is it, or its tunnel, up?' "$t/log" || fail "530: $(cat "$t/log")"
+echo "ok - mvp: tells an unreachable job API (or tunnel) from a refusal"
 
 request dev-cpu 89 || fail "request.sh dev-cpu: $(cat "$t/log")"
 ! grep -q -- '--gpus' "$t/job.sh" || fail "dev-cpu job script asks for GPUs: $(cat "$t/job.sh")"

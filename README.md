@@ -63,10 +63,14 @@ We need some pre-set profiles for the user to choose, but larger node profiles w
 
 - the `BRICS_CI_URL` variable: ci-service's job API (the names are ci-service's);
 - `secrets: origin-token: ${{ secrets.BRICS_CI_ORIGIN_TOKEN }}`;
-- `secrets: runner-admin-pat: ${{ secrets.RUNNER_ADMIN_PAT }}`: a fine-grained PAT for that repo only, with Administration: write and a short expiry.
+- `secrets: runner-admin-pat: ${{ secrets.RUNNER_ADMIN_PAT }}`: a fine-grained PAT for that repo only, with Administration: write and a short expiry;
+- `permissions: id-token: write` in the calling workflow, beside `contents: read`. Optional, but without it the CI service can't check where the job came from.
 
 The request job then posts a short Slurm script to the job API. It holds the profile's `#SBATCH` lines, the runner config, and `exec /opt/test-ci-runner/launcher/launch-runner.sh …`.
-The task token for the release is in the request step's log.
+With `id-token: write`, it also sends GitHub's OIDC token for the job (audience `isambard-ci`), so the job API records the repo, commit and run, as GitHub signed them, and the release page shows them. That needs ci-service's `feature/github_oidc` or later; without the permission, the origin token alone is sent, as before.
+Only the request job, which runs no code of yours, gets the token: the GH200 job is given `contents: read` alone, so your script can't get tokens for the CI service.
+
+To release it, log in to the submitter, then paste the job's address from the run's summary into your browser and give your origin token. (With a ci-service from before its job IDs, the task token is in the request step's log instead.)
 The runner config sits in that script, so it's stored in ci-service's database and shown on the release page: dev only.
 
 ## Layout

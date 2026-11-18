@@ -10,6 +10,11 @@
 # The GH200 job runs on a short-lived runner: one runner, in one Slurm job, for
 # this one job, labelled test-ci-<profile> and test-ci-run-<run id>. What starts that
 # runner depends on `dispatch` (see README.md).
+#
+# With dispatch: mvp or service, grant `id-token: write` in the calling workflow too:
+# the request job then sends GitHub's OIDC token, so the CI service knows which repo,
+# commit and run the job came from. Only the request job gets it: the GH200 job runs
+# your code, so it's given `contents: read` alone.
 name: gh200
 on:
   workflow_call:
@@ -71,6 +76,10 @@ jobs:
   # Waits in GitHub until its runner starts on Isambard-AI, then runs there.
   run:
     needs: request
+    # Only what checkout needs. In particular no id-token: the job runs the caller's
+    # code, which mustn't be able to get tokens for the CI service
+    permissions:
+      contents: read
     if: >-
       ${{ !cancelled() &&
           (github.event_name != 'pull_request' ||

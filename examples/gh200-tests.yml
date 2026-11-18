@@ -2,7 +2,8 @@
 #
 # Phase 1 (now): dispatch: manual. Start the runner from your laptop with
 #   test-ci-runner's tools/dispatch-runner.sh --watch OWNER/REPO
-# Phase A (dev): dispatch: mvp, with the two secrets and the BRICS_CI_URL variable.
+# Phase A (dev): dispatch: mvp, with the two secrets, the BRICS_CI_URL variable and
+#   id-token: write, so the CI service knows which repo, commit and run a job came from.
 name: GH200 tests
 on:
   push:
@@ -12,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  # id-token: write                      # dispatch: mvp: send GitHub's token for the job
 
 jobs:
   gh200:
