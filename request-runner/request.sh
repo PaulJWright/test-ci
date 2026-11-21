@@ -31,6 +31,10 @@ fail() { echo "::error::$*"; exit 1; }
 p=$(jq -c --arg p "${PROFILE:-}" '.[$p] // empty' "$profiles")
 [ -n "$p" ] || fail "Unknown profile '${PROFILE:-}'. Known: $(jq -r 'keys_unsorted | join(" ")' "$profiles")"
 runner_minutes=$(jq -r .runner_minutes <<<"$p")
+# The launcher: the action's launcher input if given, else the profile's (each cluster
+# has its own shared install), else where the dev stack puts it
+launcher=${LAUNCHER:-$(jq -r '.launcher // empty' <<<"$p")}
+launcher=${launcher:-/opt/test-ci-runner/launcher/launch-runner.sh}
 mapfile -t SBATCH_ARGS < <(jq -r '.slurm[]' <<<"$p")
 case ${DISPATCH:-} in
   mvp) ;;
@@ -59,7 +63,7 @@ trap 'rm -f "$job"' EXIT
   echo '#SBATCH --output=%x-%j.out'
   echo "export ACTIONS_RUNNER_INPUT_JITCONFIG='$config'"
   printf 'exec %q --profile %q --runner-minutes %q --config-env --expect-repo %q --expect-run %q\n' \
-    "$LAUNCHER" "$PROFILE" "$runner_minutes" "$REPO" "$RUN_ID"
+    "$launcher" "$PROFILE" "$runner_minutes" "$REPO" "$RUN_ID"
 } > "$job"
 
 # 3. GitHub's OIDC token for this job, if the workflow allows it. It says which repo,

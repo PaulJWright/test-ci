@@ -42,6 +42,8 @@ We need some pre-set profiles for the user to choose, but larger node profiles w
 | `gh200-4gpu` | 4 GPUs on one node, 2 hours | 110 min |
 | `dev-cpu` | No GPU, 30 minutes: ci-service's dev stack only | 20 min |
 
+A profile can also say where test-ci-runner's launcher is on its cluster (`launcher` in `request-runner/profiles.json`), since each cluster has its own shared install. `dev-cpu` names the dev stack's; the `gh200-*` profiles get Isambard-AI's once its shared install exists. Without one, `request-runner` uses `/opt/test-ci-runner/launcher/launch-runner.sh`.
+
 
 - It runs on a GH200 node as the Isambard-AI account the runner started under, with the usual `GITHUB_*` variables and node-local `TMPDIR` (in RAM).
 - With `image`, each `run:` step runs in that image with the GPU, the workspace and `$HOME`; each step gets a fresh container. `uses:` steps such as checkout run on the node.
@@ -66,7 +68,7 @@ We need some pre-set profiles for the user to choose, but larger node profiles w
 - `secrets: runner-admin-pat: ${{ secrets.RUNNER_ADMIN_PAT }}`: a fine-grained PAT for that repo only, with Administration: write and a short expiry;
 - `permissions: id-token: write` in the calling workflow, beside `contents: read`. Optional, but without it the CI service can't check where the job came from.
 
-The request job then posts a short Slurm script to the job API. It holds the profile's `#SBATCH` lines, the runner config, and `exec /opt/test-ci-runner/launcher/launch-runner.sh …`.
+The request job then posts a short Slurm script to the job API. It holds the profile's `#SBATCH` lines, the runner config, and `exec <the profile's launcher> …` (on the dev stack, `/opt/test-ci-runner/launcher/launch-runner.sh`).
 With `id-token: write`, it also sends GitHub's OIDC token for the job (audience `isambard-ci`), so the job API records the repo, commit and run, as GitHub signed them, and the release page shows them. That needs ci-service's `feature/github_oidc` or later; without the permission, the origin token alone is sent, as before.
 Only the request job, which runs no code of yours, gets the token: the GH200 job is given `contents: read` alone, so your script can't get tokens for the CI service.
 
