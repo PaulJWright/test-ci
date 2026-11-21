@@ -5,14 +5,14 @@ Run a script from your GitHub repo on Isambard-AI's GH200 nodes, using GitHub Ac
 Unlike CSCS's Gitlab instance, we do not need a mirror of your repo, and/or a long-running service on the cluster. We do need a PAT though.
 
 This is a repo is what you call from your workflow. 
-[test-ci-runner](https://github.com/PaulJWright/test-ci-runner) is what runs on the Cluster
+[test-ci-runner](https://github.com/i-aye-eye/test-ci-runner) is what runs on the Cluster
 
 ## What you write
 
 ```yaml
 jobs:
   gh200:
-    uses: PaulJWright/test-ci/.github/workflows/gh200.yml@v0
+    uses: i-aye-eye/test-ci/.github/workflows/gh200.yml@v0
     with:
       profile: gh200-1gpu      # 1 GPU, up to 50 minutes
       script: ci/gh200.sh      # run from your repo's root after checkout

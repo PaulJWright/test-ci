@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   gh200:
-    uses: PaulJWright/test-ci/.github/workflows/gh200.yml@v0
+    uses: i-aye-eye/test-ci/.github/workflows/gh200.yml@v0
     with:
       profile: gh200-1gpu
       script: ci/gh200.sh
@@ -29,7 +29,7 @@ jobs:
 
   # The same script, in a container image
   gh200-image:
-    uses: PaulJWright/test-ci/.github/workflows/gh200.yml@v0
+    uses: i-aye-eye/test-ci/.github/workflows/gh200.yml@v0
     with:
       profile: gh200-1gpu
       script: ci/gh200.sh
