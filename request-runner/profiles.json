@@ -1,5 +1,6 @@
 {
   "gh200-1gpu": { "job_minutes": 50,  "runner_minutes": 55,  "slurm": ["--nodes=1", "--gpus=1", "--time=01:00:00"] },
   "gh200-4gpu": { "job_minutes": 110, "runner_minutes": 115, "slurm": ["--nodes=1", "--gpus=4", "--time=02:00:00"] },
-  "dev-cpu":    { "job_minutes": 20,  "runner_minutes": 25,  "slurm": ["--nodes=1", "--time=00:30:00"] }
+  "dev-cpu":    { "job_minutes": 20,  "runner_minutes": 25,  "slurm": ["--nodes=1", "--time=00:30:00"],
+                  "launcher": "/opt/test-ci-runner/launcher/launch-runner.sh" }
 }

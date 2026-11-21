@@ -8,6 +8,8 @@
 #   job_minutes     the job's timeout-minutes in .github/workflows/gh200.yml
 #   runner_minutes  how long the launcher lets the runner live
 #   slurm           only --nodes=N, --gpus=N and --time=HH:MM:SS; --time is required
+#   launcher        optional: where test-ci-runner's launch-runner.sh is on that
+#                   cluster, an absolute path. Without it, request-runner's default
 # job < runner < Slurm --time means GitHub stops the job first, then the launcher
 # stops the runner, and Slurm never has to kill it.
 set -euo pipefail
@@ -16,10 +18,12 @@ file=$root/request-runner/profiles.json
 die() { echo "profiles.json: $*" >&2; exit 1; }
 
 jq -e 'type == "object" and length > 0 and all(.[];
-         (keys | sort) == ["job_minutes", "runner_minutes", "slurm"]
+         (keys - ["launcher"] | sort) == ["job_minutes", "runner_minutes", "slurm"]
          and (.job_minutes | type) == "number" and (.runner_minutes | type) == "number"
-         and (.slurm | type) == "array" and all(.slurm[]; type == "string"))' "$file" >/dev/null \
-  || die "each profile needs exactly job_minutes and runner_minutes (numbers) and slurm (a list of strings)"
+         and (.slurm | type) == "array" and all(.slurm[]; type == "string")
+         and ((has("launcher") | not) or (.launcher | type == "string" and test("^/[A-Za-z0-9._/-]+$"))))' \
+  "$file" >/dev/null \
+  || die "each profile needs exactly job_minutes and runner_minutes (numbers) and slurm (a list of strings), and optionally launcher (an absolute path)"
 
 while IFS=$'\t' read -r name job runner options; do
   [[ $name =~ ^[a-z0-9-]+$ ]] || die "bad profile name '$name'"

@@ -110,6 +110,26 @@ request dev-cpu 89 || fail "request.sh dev-cpu: $(cat "$t/log")"
 grep -qx '#SBATCH --time=00:30:00' "$t/job.sh" || fail "dev-cpu job script: $(cat "$t/job.sh")"
 echo "ok - mvp: dev-cpu asks for no GPU"
 
+# Which launcher: the input if given, else the profile's, else the dev stack's. A copy
+# of request-runner, with a profile that names its own launcher
+cp -r "$root/request-runner" "$t/rr"
+jq '.["gh200-1gpu"].launcher = "/shared/ci/test-ci-runner/launcher/launch-runner.sh"' \
+  "$root/request-runner/profiles.json" > "$t/rr/profiles.json"
+from_copy() {   # from_copy <launcher input> <profile>
+  PATH="$t/stub:$PATH" DISPATCH=mvp PROFILE=$2 ORIGIN_TOKEN=ot GH_TOKEN=pat \
+    URL=https://ci.example/ LAUNCHER=$1 REPO=o/r RUN_ID=95 RUN_ATTEMPT=1 \
+    GITHUB_STEP_SUMMARY=$t/summary GITHUB_OUTPUT=$t/output \
+    "$t/rr/request.sh" > "$t/log" 2>&1 || fail "request.sh: $(cat "$t/log")"
+  tail -1 "$t/job.sh" | cut -d' ' -f2
+}
+[ "$(from_copy "" gh200-1gpu)" = /shared/ci/test-ci-runner/launcher/launch-runner.sh ] \
+  || fail "the profile's launcher: $(tail -1 "$t/job.sh")"
+[ "$(from_copy "" gh200-4gpu)" = /opt/test-ci-runner/launcher/launch-runner.sh ] \
+  || fail "the default launcher: $(tail -1 "$t/job.sh")"
+[ "$(from_copy /mine/launch-runner.sh gh200-1gpu)" = /mine/launch-runner.sh ] \
+  || fail "the launcher input: $(tail -1 "$t/job.sh")"
+echo "ok - mvp: the launcher input, else the profile's, else the dev stack's"
+
 if request gh200-1gpu 1 service; then fail "service should fail for now"; fi
 if request no-such-profile 1; then fail "an unknown profile should fail"; fi
 echo "ok - refuses dispatch: service (not built) and unknown profiles"

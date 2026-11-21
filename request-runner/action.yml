@@ -20,9 +20,12 @@ inputs:
     description: The CI service's job API (ci-service), for example vars.BRICS_CI_URL
     required: true
   launcher:
-    description: Where test-ci-runner's launch-runner.sh lives on the cluster
+    description: >-
+      Where test-ci-runner's launch-runner.sh lives on the cluster. Default: the
+      profile's launcher in profiles.json, else /opt/test-ci-runner/launcher/launch-runner.sh
+      (the dev stack's)
     required: false
-    default: /opt/test-ci-runner/launcher/launch-runner.sh
+    default: ""
   audience:
     description: The audience for GitHub's OIDC token, sent if the workflow grants id-token write
     required: false
